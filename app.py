@@ -3,150 +3,264 @@ import pandas as pd
 from datetime import datetime
 
 # ---------------------------------------------------------
-# CONFIGURAÇÃO DA PÁGINA (SISTEMA DE GESTÃO - MÁRIO MÓVEIS)
+# CONFIGURAÇÃO DA PÁGINA
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Mário Móveis - Gestão Financeira",
+    page_title="Mário Móveis - Gestão Completa",
     page_icon="🪵",
     layout="wide"
 )
 
 # ---------------------------------------------------------
-# AUTENTICAÇÃO E LOGIN DE ACESSO
+# SISTEMA DE LOGIN E AUTENTICAÇÃO
 # ---------------------------------------------------------
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
-# Credenciais de acesso
-USUARIO_SISTEMA = "mario"
-SENHA_SISTEMA = "mario2026"
+# Credenciais de acesso ao sistema
+USUARIO_CORRETO = "mario"
+SENHA_CORRETA = "mario2026"
 
 def tela_login():
     st.title("🔒 Mário Móveis - Acesso Restrito")
-    st.write("Digite o usuário e senha para acessar o painel financeiro.")
+    st.write("Insira suas credenciais para acessar o sistema de gestão.")
     
     col_login, _ = st.columns([1, 1])
     with col_login:
-        usuario = st.text_input("Usuário")
-        senha = st.text_input("Senha", type="password")
+        usuario_input = st.text_input("Usuário")
+        senha_input = st.text_input("Senha", type="password")
         
-        if st.button("Entrar no Sistema"):
-            if usuario == USUARIO_SISTEMA and senha == SENHA_SISTEMA:
+        if st.button("Entrar no Sistema", use_container_width=True):
+            if usuario_input == USUARIO_CORRETO and senha_input == SENHA_CORRETA:
                 st.session_state.logado = True
-                st.success("Acesso liberado!")
+                st.success("Acesso liberado com sucesso!")
                 st.rerun()
             else:
-                st.error("Usuário ou senha inválidos.")
+                st.error("Usuário ou senha incorretos. Tente novamente.")
 
 if not st.session_state.logado:
     tela_login()
     st.stop()
 
 # ---------------------------------------------------------
-# PAINEL PRINCIPAL (ÁREA LOGADA)
+# INICIALIZAÇÃO DOS BANCOS DE DADOS EM MEMÓRIA
 # ---------------------------------------------------------
+if "moveis" not in st.session_state:
+    st.session_state.moveis = pd.DataFrame(columns=[
+        "Código", "Nome do Móvel", "Categoria", "Preço de Custo (R$)", "Preço de Venda (R$)", "Estoque"
+    ])
 
-# Menu Lateral
+if "vendas" not in st.session_state:
+    st.session_state.vendas = pd.DataFrame(columns=[
+        "Data", "Móvel", "Quantidade", "Valor Total (R$)", "Cliente"
+    ])
+
+if "despesas" not in st.session_state:
+    st.session_state.despesas = pd.DataFrame(columns=[
+        "Data", "Categoria", "Descrição", "Valor (R$)"
+    ])
+
+# ---------------------------------------------------------
+# BARRA LATERAL (MENU DE NAVEGAÇÃO E LOGOUT)
+# ---------------------------------------------------------
 with st.sidebar:
     st.title("🪵 Mário Móveis")
-    st.write("Painel de Controle")
+    st.write("Sistema de Controle")
+    
+    menu = st.radio("Navegação", [
+        "📦 Cadastrar Móvel / Estoque",
+        "🛒 Registrar Venda",
+        "💸 Despesas e Combustível",
+        "📊 Relatórios e Caixa"
+    ])
+    
     st.divider()
     if st.button("🚪 Sair do Sistema"):
         st.session_state.logado = False
         st.rerun()
 
-st.title("📊 Gestão Financeira e Controle de Caixa")
-
-# Inicialização do Banco de Dados Temporário
-if "transacoes" not in st.session_state:
-    st.session_state.transacoes = pd.DataFrame(columns=[
-        "Data", "Tipo", "Categoria", "Descrição", "Valor (R$)"
-    ])
-
 # ---------------------------------------------------------
-# FORMULÁRIO DE CADASTRO DE LANÇAMENTOS
+# PÁGINA 1: CADASTRO DE MÓVEIS E ESTOQUE
 # ---------------------------------------------------------
-st.subheader("➕ Novo Lançamento")
-
-c_tipo, c_cat, c_desc, c_val, c_data = st.columns([1.5, 2, 2.5, 1.5, 1.5])
-
-with c_tipo:
-    tipo_operacao = st.selectbox("Tipo", ["Despesa", "Receita"])
-
-with c_cat:
-    if tipo_operacao == "Despesa":
-        lista_categorias = [
-            "Transporte / Frete",       # Custo de transporte incluído
-            "Combustível / Uber",
-            "Matéria-Prima / Madeira",
-            "Ferragens / Insumos",
-            "Aluguel / Oficina",
-            "Energia / Água",
-            "Salários / Ajudantes",
-            "Manutenção de Ferramentas",
-            "Outras Despesas"
-        ]
+if menu == "📦 Cadastrar Móvel / Estoque":
+    st.title("📦 Cadastro de Móveis e Controle de Estoque")
+    
+    with st.form("form_cadastrar_movel", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            codigo = st.text_input("Código do Móvel", f"MOV-{len(st.session_state.moveis)+1:03d}")
+            nome = st.text_input("Nome do Móvel (ex: Armário Planejado, Mesa de Jantar)")
+            categoria_movel = st.selectbox("Tipo de Móvel", ["Móvel Sob Medida", "Restauração", "Móvel de Pronta Entrega", "Outros"])
+        with col2:
+            custo = st.number_input("Preço de Custo (R$)", min_value=0.0, format="%.2f")
+            venda = st.number_input("Preço de Venda (R$)", min_value=0.0, format="%.2f")
+            qtd = st.number_input("Quantidade em Estoque", min_value=1, step=1)
+            
+        salvar_movel = st.form_submit_button("➕ Salvar Móvel no Estoque")
+        
+        if salvar_movel:
+            if nome:
+                novo_movel = {
+                    "Código": codigo,
+                    "Nome do Móvel": nome,
+                    "Categoria": categoria_movel,
+                    "Preço de Custo (R$)": custo,
+                    "Preço de Venda (R$)": venda,
+                    "Estoque": qtd
+                }
+                st.session_state.moveis = pd.concat([
+                    st.session_state.moveis, 
+                    pd.DataFrame([novo_movel])
+                ], ignore_index=True)
+                st.success(f"Móvel '{nome}' cadastrado com sucesso!")
+            else:
+                st.warning("Por favor, preencha o nome do móvel.")
+                
+    st.divider()
+    st.subheader("📋 Estoque Atual")
+    if not st.session_state.moveis.empty:
+        st.dataframe(st.session_state.moveis, use_container_width=True)
     else:
-        lista_categorias = [
-            "Venda de Móveis Sob Medida",
-            "Serviços de Restauração",
-            "Entradas de Encomendas (Sinal)",
-            "Outras Receitas"
-        ]
-    categoria_sel = st.selectbox("Categoria", lista_categorias)
-
-with c_desc:
-    descricao_obs = st.text_input("Descrição", placeholder="Ex: Entrega do armário na cliente Maria")
-
-with c_val:
-    valor_lancado = st.number_input("Valor (R$)", min_value=0.01, step=50.0, format="%.2f")
-
-with c_data:
-    data_reg = st.date_input("Data", datetime.now())
-
-if st.button("💾 Salvar Registro", use_container_width=True):
-    novo_dado = {
-        "Data": data_reg.strftime("%d/%m/%Y"),
-        "Tipo": tipo_operacao,
-        "Categoria": categoria_sel,
-        "Descrição": descricao_obs,
-        "Valor (R$)": valor_lancado
-    }
-    st.session_state.transacoes = pd.concat([
-        st.session_state.transacoes, 
-        pd.DataFrame([novo_dado])
-    ], ignore_index=True)
-    st.success("Lançamento adicionado com sucesso!")
-
-st.divider()
+        st.info("Nenhum móvel cadastrado até o momento.")
 
 # ---------------------------------------------------------
-# DASHBOARD DE RESULTADOS E RESUMO FINANCEIRO
+# PÁGINA 2: REGISTRO DE VENDAS
 # ---------------------------------------------------------
-st.subheader("📈 Resumo do Mês")
-
-df_caixa = st.session_state.transacoes
-
-if not df_caixa.empty:
-    total_entradas = df_caixa[df_caixa["Tipo"] == "Receita"]["Valor (R$)"].sum()
-    total_saidas = df_caixa[df_caixa["Tipo"] == "Despesa"]["Valor (R$)"].sum()
+elif menu == "🛒 Registrar Venda":
+    st.title("🛒 Registro de Vendas")
     
-    # Soma exclusiva dos custos com frete/transporte
-    gastos_transporte = df_caixa[df_caixa["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])]["Valor (R$)"].sum()
+    if st.session_state.moveis.empty:
+        st.warning("Cadastre móveis na aba de 'Estoque' antes de realizar uma venda.")
+    else:
+        lista_moveis = st.session_state.moveis["Nome do Móvel"].tolist()
+        
+        with st.form("form_venda", clear_on_submit=True):
+            col_v1, col_v2 = st.columns(2)
+            with col_v1:
+                movel_selecionado = st.selectbox("Selecione o Móvel Vendido", lista_moveis)
+                cliente = st.text_input("Nome do Cliente")
+            with col_v2:
+                qtd_venda = st.number_input("Quantidade Vendida", min_value=1, step=1)
+                data_venda = st.date_input("Data da Venda", datetime.now())
+                
+            # Busca o valor cadastrado para sugerir o preço total
+            preco_unitario = st.session_state.moveis.loc[
+                st.session_state.moveis["Nome do Móvel"] == movel_selecionado, "Preço de Venda (R$)"
+            ].values[0]
+            
+            valor_total_venda = preco_unitario * qtd_venda
+            st.info(f"Valor Total Estimado da Venda: R$ {valor_total_venda:,.2f}")
+            
+            confirmar_venda = st.form_submit_button("✅ Registrar Venda")
+            
+            if confirmar_venda:
+                # Atualizar Estoque
+                idx = st.session_state.moveis.index[st.session_state.moveis["Nome do Móvel"] == movel_selecionado].tolist()[0]
+                estoque_atual = st.session_state.moveis.at[idx, "Estoque"]
+                
+                if estoque_atual >= qtd_venda:
+                    st.session_state.moveis.at[idx, "Estoque"] -= qtd_venda
+                    
+                    nova_venda = {
+                        "Data": data_venda.strftime("%d/%m/%Y"),
+                        "Móvel": movel_selecionado,
+                        "Quantidade": qtd_venda,
+                        "Valor Total (R$)": valor_total_venda,
+                        "Cliente": cliente
+                    }
+                    st.session_state.vendas = pd.concat([
+                        st.session_state.vendas, 
+                        pd.DataFrame([nova_venda])
+                    ], ignore_index=True)
+                    st.success(f"Venda de '{movel_selecionado}' registrada com sucesso!")
+                else:
+                    st.error(f"Estoque insuficiente! Há apenas {estoque_atual} unidade(s) disponível(is).")
+                    
+        st.divider()
+        st.subheader("🛍️ Histórico de Vendas")
+        if not st.session_state.vendas.empty:
+            st.dataframe(st.session_state.vendas, use_container_width=True)
+        else:
+            st.info("Nenhuma venda registrada ainda.")
+
+# ---------------------------------------------------------
+# PÁGINA 3: DESPESAS E CUSTOS DE TRANSPORTE/COMBUSTÍVEL
+# ---------------------------------------------------------
+elif menu == "💸 Despesas e Combustível":
+    st.title("💸 Lançamento de Despesas e Custos Operacionais")
     
-    saldo_caixa = total_entradas - total_saidas
+    with st.form("form_despesa", clear_on_submit=True):
+        c_d1, c_d2 = st.columns(2)
+        with c_d1:
+            categoria_despesa = st.selectbox("Categoria do Gasto", [
+                "Combustível / Uber",       # <--- Custo de combustível
+                "Transporte / Frete",       # <--- Custo de frete/transporte
+                "Matéria-Prima / Madeira",
+                "Ferragens / Insumos",
+                "Aluguel da Oficina",
+                "Energia / Água",
+                "Salários / Ajudantes",
+                "Manutenção de Ferramentas",
+                "Outras Despesas"
+            ])
+            descricao_d = st.text_input("Descrição do Gasto (ex: Gasolina para entrega, Frete de tábuas)")
+        with c_d2:
+            valor_d = st.number_input("Valor do Gasto (R$)", min_value=0.01, format="%.2f")
+            data_d = st.date_input("Data do Gasto", datetime.now())
+            
+        salvar_despesa = st.form_submit_button("💸 Registrar Despesa")
+        
+        if salvar_despesa:
+            nova_desp = {
+                "Data": data_d.strftime("%d/%m/%Y"),
+                "Categoria": categoria_despesa,
+                "Descrição": descricao_d,
+                "Valor (R$)": valor_d
+            }
+            st.session_state.despesas = pd.concat([
+                st.session_state.despesas, 
+                pd.DataFrame([nova_desp])
+            ], ignore_index=True)
+            st.success(f"Despesa de '{categoria_despesa}' gravada com sucesso!")
+            
+    st.divider()
+    st.subheader("📋 Lista de Despesas")
+    if not st.session_state.despesas.empty:
+        st.dataframe(st.session_state.despesas, use_container_width=True)
+    else:
+        st.info("Nenhuma despesa lançada no momento.")
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total de Vendas / Receitas", f"R$ {total_entradas:,.2f}")
-    col2.metric("Total de Despesas", f"R$ {total_saidas:,.2f}")
-    col3.metric("Custos c/ Transporte/Frete", f"R$ {gastos_transporte:,.2f}")
-    col4.metric("Saldo Em Caixa", f"R$ {saldo_caixa:,.2f}")
+# ---------------------------------------------------------
+# PÁGINA 4: RELATÓRIOS E BALANÇO DE CAIXA
+# ---------------------------------------------------------
+elif menu == "📊 Relatórios e Caixa":
+    st.title("📊 Resumo Financeiro e Indicadores")
+    
+    total_faturamento = st.session_state.vendas["Valor Total (R$)"].sum() if not st.session_state.vendas.empty else 0.0
+    total_saidas = st.session_state.despesas["Valor (R$)"].sum() if not st.session_state.despesas.empty else 0.0
+    
+    # Cálculo isolado de Transporte + Combustível
+    if not st.session_state.despesas.empty:
+        gastos_transporte = st.session_state.despesas[
+            st.session_state.despesas["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])
+        ]["Valor (R$)"].sum()
+    else:
+        gastos_transporte = 0.0
+        
+    saldo_liquido = total_faturamento - total_saidas
+    
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric("Faturamento Total (Vendas)", f"R$ {total_faturamento:,.2f}")
+    col_m2.metric("Total de Despesas", f"R$ {total_saidas:,.2f}")
+    col_m3.metric("Gasto c/ Transporte e Combustível", f"R$ {gastos_transporte:,.2f}")
+    col_m4.metric("Saldo Líquido em Caixa", f"R$ {saldo_liquido:,.2f}")
+    
+    st.divider()
+    st.subheader("🔍 Resumo Geral")
+    st.write(f"Móveis Cadastrados: **{len(st.session_state.moveis)}**")
+    st.write(f"Total de Vendas Realizadas: **{len(st.session_state.vendas)}**")
+    st.write(f"Total de Lançamentos de Despesas: **{len(st.session_state.despesas)}**")
 
-    st.write("---")
-    st.subheader("📋 Historico de Transações")
-    st.dataframe(df_caixa, use_container_width=True)
-else:
-    st.info("Nenhum lançamento cadastrado no momento.")
 
 
 
