@@ -1,334 +1,152 @@
-import os
-import sqlite3
-from datetime import datetime
-import pandas as pd
 import streamlit as st
+import pandas as pd
+from datetime import datetime
 
-# Criar pasta para salvar as fotos se ela não existir
-PASTA_IMAGENS = "imagens"
-if not os.path.exists(PASTA_IMAGENS):
-    os.makedirs(PASTA_IMAGENS)
-
-
-# --- CONFIGURAÇÃO DO BANCO DE DADOS ---
-def conectar_bd():
-    conn = sqlite3.connect("mario_moveis.db")
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS moveis (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            categoria TEXT,
-            estado TEXT,
-            preco_compra REAL,
-            preco_venda REAL,
-            status TEXT DEFAULT 'Disponivel',
-            data_entrada TEXT,
-            foto_path TEXT
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS vendas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            movel_id INTEGER,
-            valor_venda REAL,
-            forma_pagamento TEXT,
-            data_venda TEXT,
-            FOREIGN KEY (movel_id) REFERENCES moveis (id)
-        )
-    """)
-    conn.commit()
-
-    try:
-        cursor.execute("ALTER TABLE moveis ADD COLUMN foto_path TEXT")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    conn.close()
-
-
-conectar_bd()
-
-# --- CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL (CSS) ---
+# ---------------------------------------------------------
+# CONFIGURAÇÃO DA PÁGINA (SISTEMA DE GESTÃO - MÁRIO MÓVEIS)
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title="Mário Móveis - Gestão de Estoque",
-    page_icon="🪑",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Mário Móveis - Gestão Financeira",
+    page_icon="🪵",
+    layout="wide"
 )
 
-# Estilização em CSS para fontes, botões, bordas e sombras
-st.markdown(
-    """
-    <style>
-    /* Importação da fonte moderna 'Inter' */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+# ---------------------------------------------------------
+# AUTENTICAÇÃO E LOGIN DE ACESSO
+# ---------------------------------------------------------
+if "logado" not in st.session_state:
+    st.session_state.logado = False
 
-    html, body, [class*="css"]  {
-        font-family: 'Inter', sans-serif;
-    }
+# Credenciais de acesso
+USUARIO_SISTEMA = "mario"
+SENHA_SISTEMA = "mario2026"
 
-    /* Cabeçalho principal */
-    .main-title {
-        color: #1E293B;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-        margin-bottom: 0px;
-    }
+def tela_login():
+    st.title("🔒 Mário Móveis - Acesso Restrito")
+    st.write("Digite o usuário e senha para acessar o painel financeiro.")
+    
+    col_login, _ = st.columns([1, 1])
+    with col_login:
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
+        
+        if st.button("Entrar no Sistema"):
+            if usuario == USUARIO_SISTEMA and senha == SENHA_SISTEMA:
+                st.session_state.logado = True
+                st.success("Acesso liberado!")
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
 
-    .sub-title {
-        color: #64748B;
-        font-size: 1.1rem;
-        margin-bottom: 25px;
-    }
+if not st.session_state.logado:
+    tela_login()
+    st.stop()
 
-    /* Cartões dos móveis no estoque */
-    .movel-card {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        margin-bottom: 15px;
-        transition: all 0.2s ease-in-out;
-    }
-
-    .movel-card:hover {
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
-        border-color: #CBD5E1;
-    }
-
-    /* Badges / Etiquetas de Status */
-    .badge-disponivel {
-        background-color: #DCFCE7;
-        color: #166534;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-
-    .badge-vendido {
-        background-color: #F1F5F9;
-        color: #475569;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-
-    /* Botão Principal Estilizado */
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-
-    /* Estilização da barra lateral */
-    section[data-testid="stSidebar"] {
-        background-color: #F8FAFC;
-        border-right: 1px solid #E2E8F0;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
-# Topo do Sistema
-st.markdown("<h1 class='main-title'>🪑 Mário Móveis</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub-title'>Sistema de Gestão de Estoque & Controle Financeiro</p>", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# PAINEL PRINCIPAL (ÁREA LOGADA)
+# ---------------------------------------------------------
 
 # Menu Lateral
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2400/2400629.png", width=80)
-st.sidebar.title("Menu Principal")
-opcao = st.sidebar.radio(
-    "Ir para:",
-    [
-        "📦 Cadastrar Móvel",
-        "🛋️ Estoque / Cadastrados",
-        "💰 Registrar Venda",
-        "📊 Relatório de Lucro",
-    ],
-)
+with st.sidebar:
+    st.title("🪵 Mário Móveis")
+    st.write("Painel de Controle")
+    st.divider()
+    if st.button("🚪 Sair do Sistema"):
+        st.session_state.logado = False
+        st.rerun()
 
-# --- 1. CADASTRO DE MÓVEIS ---
-if opcao == "📦 Cadastrar Móvel":
-    st.subheader("📦 Cadastrar Novo Móvel")
+st.title("📊 Gestão Financeira e Controle de Caixa")
 
-    with st.form("form_cadastro"):
-        nome = st.text_input("Nome do Móvel / Descrição", placeholder="Ex: Sofá retrátil 3 lugares marrom")
+# Inicialização do Banco de Dados Temporário
+if "transacoes" not in st.session_state:
+    st.session_state.transacoes = pd.DataFrame(columns=[
+        "Data", "Tipo", "Categoria", "Descrição", "Valor (R$)"
+    ])
 
-        col1, col2 = st.columns(2)
-        with col1:
-            categoria = st.selectbox("Categoria", ["Sala", "Quarto", "Cozinha", "Escritório", "Outros"])
-            preco_compra = st.number_input("Preço de Compra (Custo R$)", min_value=0.0, format="%.2f")
-        with col2:
-            estado = st.selectbox("Estado de Conservação",
-                                  ["Excelente", "Bom (Pequenos detalhes)", "Precisa de Reforma"])
-            preco_venda = st.number_input("Preço de Venda Sugerido (R$)", min_value=0.0, format="%.2f")
+# ---------------------------------------------------------
+# FORMULÁRIO DE CADASTRO DE LANÇAMENTOS
+# ---------------------------------------------------------
+st.subheader("➕ Novo Lançamento")
 
-        foto = st.file_uploader("Foto do Móvel (JPG, PNG ou JPEG)", type=["jpg", "jpeg", "png"])
+c_tipo, c_cat, c_desc, c_val, c_data = st.columns([1.5, 2, 2.5, 1.5, 1.5])
 
-        btn_cadastrar = st.form_submit_button("✨ Salvar Móvel no Estoque", type="primary")
+with c_tipo:
+    tipo_operacao = st.selectbox("Tipo", ["Despesa", "Receita"])
 
-        if btn_cadastrar:
-            if nome:
-                caminho_foto = ""
-                if foto is not None:
-                    nome_arquivo = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{foto.name}"
-                    caminho_foto = os.path.join(PASTA_IMAGENS, nome_arquivo)
-                    with open(caminho_foto, "wb") as f:
-                        f.write(foto.getbuffer())
-
-                conn = sqlite3.connect("mario_moveis.db")
-                cursor = conn.cursor()
-                data_hoje = datetime.now().strftime("%Y-%m-%d %H:%M")
-                cursor.execute(
-                    """
-                    INSERT INTO moveis (nome, categoria, estado, preco_compra, preco_venda, data_entrada, foto_path)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                    (nome, categoria, estado, preco_compra, preco_venda, data_hoje, caminho_foto),
-                )
-                conn.commit()
-                conn.close()
-                st.success(f"✅ Móvel **'{nome}'** cadastrado com sucesso no estoque!")
-            else:
-                st.error("⚠️ Por favor, preencha a descrição do móvel.")
-
-# --- 2. VER ESTOQUE ---
-elif opcao == "🛋️ Estoque / Cadastrados":
-    st.subheader("🛋️ Consultar Estoque")
-
-    filtro_status = st.radio("Filtrar por Status:", ["Apenas Disponíveis", "Vendidos", "Todos"], horizontal=True)
-
-    conn = sqlite3.connect("mario_moveis.db")
-
-    if filtro_status == "Apenas Disponíveis":
-        query = "SELECT id, nome, categoria, estado, preco_compra, preco_venda, status, foto_path FROM moveis WHERE status = 'Disponivel'"
-    elif filtro_status == "Vendidos":
-        query = "SELECT id, nome, categoria, estado, preco_compra, preco_venda, status, foto_path FROM moveis WHERE status = 'Vendido'"
+with c_cat:
+    if tipo_operacao == "Despesa":
+        lista_categorias = [
+            "Transporte / Frete",       # Custo de transporte incluído
+            "Combustível / Uber",
+            "Matéria-Prima / Madeira",
+            "Ferragens / Insumos",
+            "Aluguel / Oficina",
+            "Energia / Água",
+            "Salários / Ajudantes",
+            "Manutenção de Ferramentas",
+            "Outras Despesas"
+        ]
     else:
-        query = "SELECT id, nome, categoria, estado, preco_compra, preco_venda, status, foto_path FROM moveis"
+        lista_categorias = [
+            "Venda de Móveis Sob Medida",
+            "Serviços de Restauração",
+            "Entradas de Encomendas (Sinal)",
+            "Outras Receitas"
+        ]
+    categoria_sel = st.selectbox("Categoria", lista_categorias)
 
-    df = pd.read_sql_query(query, conn)
-    conn.close()
+with c_desc:
+    descricao_obs = st.text_input("Descrição", placeholder="Ex: Entrega do armário na cliente Maria")
 
-    if not df.empty:
-        for _, row in df.iterrows():
-            with st.container():
-                col_img, col_info, col_acao = st.columns([1, 2.5, 0.8])
+with c_val:
+    valor_lancado = st.number_input("Valor (R$)", min_value=0.01, step=50.0, format="%.2f")
 
-                with col_img:
-                    foto_caminho = str(row["foto_path"]) if pd.notna(row["foto_path"]) else ""
-                    if foto_caminho and os.path.exists(foto_caminho):
-                        st.image(foto_caminho, use_container_width=True)
-                    else:
-                        st.caption("📷 *Sem imagem cadastrada*")
+with c_data:
+    data_reg = st.date_input("Data", datetime.now())
 
-                with col_info:
-                    status_class = "badge-disponivel" if row["status"] == "Disponivel" else "badge-vendido"
-                    status_label = "Disponível" if row["status"] == "Disponivel" else "Vendido"
+if st.button("💾 Salvar Registro", use_container_width=True):
+    novo_dado = {
+        "Data": data_reg.strftime("%d/%m/%Y"),
+        "Tipo": tipo_operacao,
+        "Categoria": categoria_sel,
+        "Descrição": descricao_obs,
+        "Valor (R$)": valor_lancado
+    }
+    st.session_state.transacoes = pd.concat([
+        st.session_state.transacoes, 
+        pd.DataFrame([novo_dado])
+    ], ignore_index=True)
+    st.success("Lançamento adicionado com sucesso!")
 
-                    st.markdown(
-                        f"### #{row['id']} - {row['nome']} <span class='{status_class}'>{status_label}</span>",
-                        unsafe_allow_html=True,
-                    )
-                    st.write(f"**Categoria:** {row['categoria']} | **Estado:** {row['estado']}")
-                    st.write(
-                        f"💳 **Custo:** R$ {row['preco_compra']:.2f} &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **Sugerido:** R$ {row['preco_venda']:.2f}"
-                    )
+st.divider()
 
-                with col_acao:
-                    if st.button("🗑️ Excluir", key=f"del_{row['id']}"):
-                        conn = sqlite3.connect("mario_moveis.db")
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM vendas WHERE movel_id = ?", (row["id"],))
-                        cursor.execute("DELETE FROM moveis WHERE id = ?", (row["id"],))
-                        conn.commit()
-                        conn.close()
-                        st.success("Móvel removido!")
-                        st.rerun()
+# ---------------------------------------------------------
+# DASHBOARD DE RESULTADOS E RESUMO FINANCEIRO
+# ---------------------------------------------------------
+st.subheader("📈 Resumo do Mês")
 
-                st.divider()
-    else:
-        st.info("Nenhum móvel encontrado com o filtro selecionado.")
+df_caixa = st.session_state.transacoes
 
-# --- 3. REGISTRAR VENDA ---
-elif opcao == "💰 Registrar Venda":
-    st.subheader("💰 Registrar Nova Venda")
+if not df_caixa.empty:
+    total_entradas = df_caixa[df_caixa["Tipo"] == "Receita"]["Valor (R$)"].sum()
+    total_saidas = df_caixa[df_caixa["Tipo"] == "Despesa"]["Valor (R$)"].sum()
+    
+    # Soma exclusiva dos custos com frete/transporte
+    gastos_transporte = df_caixa[df_caixa["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])]["Valor (R$)"].sum()
+    
+    saldo_caixa = total_entradas - total_saidas
 
-    conn = sqlite3.connect("mario_moveis.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, nome, preco_venda FROM moveis WHERE status = 'Disponivel'")
-    moveis_disponiveis = cursor.fetchall()
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total de Vendas / Receitas", f"R$ {total_entradas:,.2f}")
+    col2.metric("Total de Despesas", f"R$ {total_saidas:,.2f}")
+    col3.metric("Custos c/ Transporte/Frete", f"R$ {gastos_transporte:,.2f}")
+    col4.metric("Saldo Em Caixa", f"R$ {saldo_caixa:,.2f}")
 
-    if moveis_disponiveis:
-        opcoes_moveis = {f"ID {m[0]} - {m[1]} (Sugerido: R$ {m[2]:.2f})": m[0] for m in moveis_disponiveis}
-        escolha = st.selectbox("Selecione o móvel vendido:", list(opcoes_moveis.keys()))
-
-        col1, col2 = st.columns(2)
-        with col1:
-            valor_final = st.number_input("Valor Final Fechado na Venda (R$)", min_value=0.0, format="%.2f")
-        with col2:
-            forma_pag = st.selectbox("Forma de Pagamento", ["PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro"])
-
-        if st.button("🎉 Confirmar e Baixar do Estoque", type="primary"):
-            movel_id = opcoes_moveis[escolha]
-            data_venda = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-            cursor.execute(
-                """
-                INSERT INTO vendas (movel_id, valor_venda, forma_pagamento, data_venda)
-                VALUES (?, ?, ?, ?)
-            """,
-                (movel_id, valor_final, forma_pag, data_venda),
-            )
-
-            cursor.execute("UPDATE moveis SET status = 'Vendido' WHERE id = ?", (movel_id,))
-
-            conn.commit()
-            conn.close()
-            st.success("🎉 Venda registrada com sucesso! Estoque atualizado.")
-            st.rerun()
-    else:
-        st.warning("Não há móveis disponíveis no estoque no momento.")
-        conn.close()
-
-# --- 4. RELATÓRIO DE LUCRO ---
-elif opcao == "📊 Relatório de Lucro":
-    st.subheader("📊 Resumo Financeiro e Lucratividade")
-
-    conn = sqlite3.connect("mario_moveis.db")
-    query = """
-        SELECT 
-            m.id AS 'ID', 
-            m.nome AS 'Móvel', 
-            m.preco_compra AS 'Custo (R$)', 
-            v.valor_venda AS 'Venda (R$)', 
-            (v.valor_venda - m.preco_compra) AS 'Lucro (R$)',
-            v.forma_pagamento AS 'Forma Pagto',
-            v.data_venda AS 'Data Venda'
-        FROM vendas v
-        JOIN moveis m ON v.movel_id = m.id
-    """
-    df_vendas = pd.read_sql_query(query, conn)
-    conn.close()
-
-    if not df_vendas.empty:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("📦 Peças Vendidas", len(df_vendas))
-        col2.metric("💵 Faturamento Total", f"R$ {df_vendas['Venda (R$)'].sum():.2f}")
-        col3.metric("📈 Lucro Líquido", f"R$ {df_vendas['Lucro (R$)'].sum():.2f}")
-
-        st.markdown("---")
-        st.subheader("Detalhamento de Vendas")
-        st.dataframe(df_vendas, use_container_width=True)
-    else:
-        st.info("Nenhuma venda realizada ainda para gerar estatísticas.")
+    st.write("---")
+    st.subheader("📋 Historico de Transações")
+    st.dataframe(df_caixa, use_container_width=True)
+else:
+    st.info("Nenhum lançamento cadastrado no momento.")
 
 
 
