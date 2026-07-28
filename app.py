@@ -131,9 +131,13 @@ def salvar_dados():
 
 
 # ---------------------------------------------------------
-# BARRA LATERAL (MENU DE NAVEGAÇÃO E LOGOUT)
+# BARRA LATERAL (MENU DE NAVEGAÇÃO, LOGO E LOGOUT)
 # ---------------------------------------------------------
 with st.sidebar:
+    # Exibe a sua logo se o arquivo logo.png existir na pasta
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+
     st.title("🪵 Mário Móveis")
     st.write("Sistema de Controle")
 
@@ -396,6 +400,15 @@ elif menu == "📊 Relatórios e Caixa":
     st.write(
         f"Total de Lançamentos de Despesas: **{len(st.session_state.despesas)}**"
     )
+
+
+
+    
+
+
+
+
+
 
 
 
