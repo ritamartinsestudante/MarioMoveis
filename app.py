@@ -16,28 +16,35 @@ st.set_page_config(
 # ---------------------------------------------------------
 pwa_code = """
 <script>
-    const manifest = {
-        "name": "Mário Móveis - Gestão",
-        "short_name": "Mário Móveis",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#3E2723",
-        "theme_color": "#3E2723",
-        "icons": [
-            {
-                "src": "https://img.icons8.com/color/512/hardwood.png",
-                "sizes": "512x512",
-                "type": "image/png"
-            }
-        ]
-    };
-    const stringManifest = JSON.stringify(manifest);
-    const blob = new Blob([stringManifest], {type: 'application/json'});
-    const manifestURL = URL.createObjectURL(blob);
-    const link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = manifestURL;
-    document.head.appendChild(link);
+    (function() {
+        const manifest = {
+            "name": "Mário Móveis - Gestão",
+            "short_name": "Mário Móveis",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#3E2723",
+            "theme_color": "#3E2723",
+            "icons": [
+                {
+                    "src": "https://img.icons8.com/color/512/hardwood.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        };
+
+        // Aplica o manifesto no documento principal (fora do iframe do Streamlit)
+        const targetDoc = window.top.document;
+        if (!targetDoc.querySelector('link[rel="manifest"]')) {
+            const stringManifest = JSON.stringify(manifest);
+            const blob = new Blob([stringManifest], {type: 'application/json'});
+            const manifestURL = URL.createObjectURL(blob);
+            const link = targetDoc.createElement('link');
+            link.rel = 'manifest';
+            link.href = manifestURL;
+            targetDoc.head.appendChild(link);
+        }
+    })();
 </script>
 """
 components.html(pwa_code, height=0)
@@ -68,8 +75,8 @@ def tela_login():
 
         if st.button("Entrar no Sistema", use_container_width=True):
             if (
-                usuario_input == USUARIO_CORRETO
-                and senha_input == SENHA_CORRETA
+                    usuario_input == USUARIO_CORRETO
+                    and senha_input == SENHA_CORRETA
             ):
                 st.session_state.logado = True
                 st.success("Acesso liberado com sucesso!")
@@ -205,7 +212,7 @@ if menu == "📦 Cadastrar Móvel / Estoque":
     if not st.session_state.moveis.empty:
         st.dataframe(st.session_state.moveis, use_container_width=True)
     else:
-        st.info("Nenum móvel cadastrado até o momento.")
+        st.info("Nenhum móvel cadastrado até o momento.")
 
 # ---------------------------------------------------------
 # PÁGINA 2: REGISTRO DE VENDAS
@@ -233,7 +240,6 @@ elif menu == "🛒 Registrar Venda":
                 )
                 data_venda = st.date_input("Data da Venda", datetime.now())
 
-            # Busca o valor cadastrado para sugerir o preço total
             row_busca = st.session_state.moveis.loc[
                 st.session_state.moveis["Nome do Móvel"] == movel_selecionado,
                 "Preço de Venda (R$)",
@@ -248,10 +254,9 @@ elif menu == "🛒 Registrar Venda":
             confirmar_venda = st.form_submit_button("✅ Registrar Venda")
 
             if confirmar_venda:
-                # Atualizar Estoque
                 idx_list = st.session_state.moveis.index[
                     st.session_state.moveis["Nome do Móvel"] == movel_selecionado
-                ].tolist()
+                    ].tolist()
                 if idx_list:
                     idx = idx_list[0]
                     estoque_atual = st.session_state.moveis.at[idx, "Estoque"]
@@ -391,6 +396,8 @@ elif menu == "📊 Relatórios e Caixa":
     st.write(
         f"Total de Lançamentos de Despesas: **{len(st.session_state.despesas)}**"
     )
+
+
 
 
 
