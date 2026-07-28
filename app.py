@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from PIL import Image
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -134,11 +135,15 @@ def salvar_dados():
 # BARRA LATERAL (MENU DE NAVEGAÇÃO, LOGO E LOGOUT)
 # ---------------------------------------------------------
 with st.sidebar:
-    # Busca a imagem do logo na pasta static/ ou na raiz
-    if os.path.exists("static/logo.png"):
-        st.image("static/logo.png", use_container_width=True)
+    # Carregamento seguro da imagem usando PIL para a nuvem
+    logo_path = os.path.join("static", "logo.png")
+
+    if os.path.exists(logo_path):
+        imagem_logo = Image.open(logo_path)
+        st.image(imagem_logo, use_container_width=True)
     elif os.path.exists("logo.png"):
-        st.image("logo.png", use_container_width=True)
+        imagem_logo = Image.open("logo.png")
+        st.image(imagem_logo, use_container_width=True)
 
     st.title("🪵 Mário Móveis")
     st.write("Sistema de Controle")
@@ -218,7 +223,7 @@ if menu == "📦 Cadastrar Móvel / Estoque":
     if not st.session_state.moveis.empty:
         st.dataframe(st.session_state.moveis, use_container_width=True)
     else:
-        st.info("Nenum móvel cadastrado até o momento.")
+        st.info("Nenhum móvel cadastrado até o momento.")
 
 # ---------------------------------------------------------
 # PÁGINA 2: REGISTRO DE VENDAS
@@ -402,6 +407,9 @@ elif menu == "📊 Relatórios e Caixa":
     st.write(
         f"Total de Lançamentos de Despesas: **{len(st.session_state.despesas)}**"
     )
+
+
+
 
 
 
