@@ -134,8 +134,10 @@ def salvar_dados():
 # BARRA LATERAL (MENU DE NAVEGAÇÃO, LOGO E LOGOUT)
 # ---------------------------------------------------------
 with st.sidebar:
-    # Exibe a sua logo se o arquivo logo.png existir na pasta
-    if os.path.exists("logo.png"):
+    # Busca a imagem do logo na pasta static/ ou na raiz
+    if os.path.exists("static/logo.png"):
+        st.image("static/logo.png", use_container_width=True)
+    elif os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
 
     st.title("🪵 Mário Móveis")
@@ -216,7 +218,7 @@ if menu == "📦 Cadastrar Móvel / Estoque":
     if not st.session_state.moveis.empty:
         st.dataframe(st.session_state.moveis, use_container_width=True)
     else:
-        st.info("Nenhum móvel cadastrado até o momento.")
+        st.info("Nenum móvel cadastrado até o momento.")
 
 # ---------------------------------------------------------
 # PÁGINA 2: REGISTRO DE VENDAS
@@ -403,7 +405,8 @@ elif menu == "📊 Relatórios e Caixa":
 
 
 
-    
+
+
 
 
 
