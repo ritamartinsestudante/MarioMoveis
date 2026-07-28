@@ -1,5 +1,5 @@
-import os
 from datetime import datetime
+import os
 from PIL import Image
 import pandas as pd
 import streamlit as st
@@ -11,6 +11,82 @@ import streamlit.components.v1 as components
 st.set_page_config(
     page_title="Mário Móveis - Gestão Completa", page_icon="🪵", layout="wide"
 )
+
+# ---------------------------------------------------------
+# ESTILIZAÇÃO CSS CUSTOMIZADA (DESIGN MODERNO)
+# ---------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    /* Fundo principal da aplicação */
+    .stApp {
+        background-color: #121212;
+        color: #E0E0E0;
+    }
+
+    /* Estilização da Barra Lateral */
+    [data-testid="stSidebar"] {
+        background-color: #1E1E1E;
+        border-right: 1px solid #2C2C2C;
+    }
+
+    /* Cartões e Métricas */
+    [data-testid="stMetric"] {
+        background-color: #1E1E1E;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #2C2C2C;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    [data-testid="stMetricValue"] {
+        color: #D7CCC8 !important;
+    }
+
+    /* Botões Principais */
+    .stButton > button {
+        background: linear-gradient(135deg, #5D4037 0%, #3E2723 100%);
+        color: white;
+        border-radius: 8px;
+        border: 1px solid #795548;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #6D4C41 0%, #4E342E 100%);
+        border-color: #A1887F;
+        color: #FFF;
+    }
+
+    /* Títulos e Cabeçalhos */
+    h1, h2, h3 {
+        color: #D7CCC8 !important;
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    /* Campos de Entrada de Texto e Selects */
+    stTextInput > div > div > input, stSelectbox > div > div > div {
+        background-color: #1E1E1E !important;
+        color: white !important;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+# ---------------------------------------------------------
+# FUNÇÃO AUXILIAR PARA CARREGAR A LOGO
+# ---------------------------------------------------------
+def carregar_logo():
+    logo_path = os.path.join("static", "logo.png")
+    if os.path.exists(logo_path):
+        return Image.open(logo_path)
+    elif os.path.exists("logo.png"):
+        return Image.open("logo.png")
+    return None
+
+
+imagem_logo = carregar_logo()
 
 # ---------------------------------------------------------
 # SUPORTE A PWA (TRANSFORMA EM ÍCONE / APP NO CELULAR)
@@ -34,7 +110,6 @@ pwa_code = """
             ]
         };
 
-        // Aplica o manifesto no documento principal (fora do iframe do Streamlit)
         const targetDoc = window.top.document;
         if (!targetDoc.querySelector('link[rel="manifest"]')) {
             const stringManifest = JSON.stringify(manifest);
@@ -66,11 +141,14 @@ SENHA_CORRETA = "mario2026"
 
 
 def tela_login():
-    st.title("🔒 Mário Móveis - Acesso Restrito")
-    st.write("Insira suas credenciais para acessar o sistema de gestão.")
-
     col_login, _ = st.columns([1, 1])
     with col_login:
+        if imagem_logo:
+            st.image(imagem_logo, width=180)
+
+        st.title("🔒 Mário Móveis - Acesso Restrito")
+        st.write("Insira suas credenciais para acessar o sistema de gestão.")
+
         usuario_input = st.text_input("Usuário")
         senha_input = st.text_input("Senha", type="password")
 
@@ -135,14 +213,7 @@ def salvar_dados():
 # BARRA LATERAL (MENU DE NAVEGAÇÃO, LOGO E LOGOUT)
 # ---------------------------------------------------------
 with st.sidebar:
-    # Carregamento seguro da imagem usando PIL para a nuvem
-    logo_path = os.path.join("static", "logo.png")
-
-    if os.path.exists(logo_path):
-        imagem_logo = Image.open(logo_path)
-        st.image(imagem_logo, use_container_width=True)
-    elif os.path.exists("logo.png"):
-        imagem_logo = Image.open("logo.png")
+    if imagem_logo:
         st.image(imagem_logo, use_container_width=True)
 
     st.title("🪵 Mário Móveis")
