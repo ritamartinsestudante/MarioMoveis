@@ -6,53 +6,6 @@ st.set_page_config(
     page_title="R - Gestão Comercial", page_icon="📦", layout="wide"
 )
 
-# --- ESTILIZAÇÃO VISUAL MODERNA E COLORIDA (CSS CUSTOMIZADO) ---
-st.markdown(
-    """
-    <style>
-        /* Fundo geral da aplicação com tom levemente moderno */
-        .stApp {
-            background-color: #F4F7F6;
-        }
-
-        /* Estilo dos Cards de Métricas */
-        div[data-testid="stMetric"] {
-            background-color: #FFFFFF;
-            padding: 18px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            border-left: 5px solid #FF4B2B;
-        }
-
-        /* Botões estilizados com gradiente */
-        .stButton>button {
-            background: linear-gradient(135deg, #FF4B2B, #FF416C);
-            color: white;
-            border-radius: 10px;
-            font-weight: bold;
-            border: none;
-            padding: 10px 20px;
-            box-shadow: 0 4px 10px rgba(255, 75, 43, 0.3);
-            transition: 0.3s;
-        }
-        .stButton>button:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
-        }
-
-        /* Estilo do Menu Lateral */
-        section[data-testid="stSidebar"] {
-            background-color: #1E1E2F;
-            color: white;
-        }
-        section[data-testid="stSidebar"] .stMarkdown {
-            color: white;
-        }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
 # Inicialização do Banco de Dados na Sessão
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
@@ -103,32 +56,28 @@ def exibir_logo():
 if not st.session_state["autenticado"]:
     exibir_logo()
     st.markdown(
-        "<h3 style='text-align: center; color: #333;'>Acesse o seu Comércio</h3>",
+        "<h3 style='text-align: center;'>Acesse o seu Comércio</h3>",
         unsafe_allow_html=True,
     )
 
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        with st.form("form_login"):
-            usuario = st.text_input("Usuário")
-            senha = st.text_input("Senha", type="password")
-            entrar = st.form_submit_button(
-                "Entrar no Aplicativo", use_container_width=True
-            )
-            if entrar:
-                if usuario == "admin" and senha == "1234":
-                    st.session_state["autenticado"] = True
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha inválidos!")
+        usuario = st.text_input("Usuário", key="txt_usuario")
+        senha = st.text_input("Senha", type="password", key="txt_senha")
+        if st.button("Entrar no Aplicativo", use_container_width=True):
+            if usuario == "admin" and senha == "1234":
+                st.session_state["autenticado"] = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos! (Use admin / 1234)")
     st.stop()
+
 
 # --- APLICAÇÃO PRINCIPAL (PÓS-LOGIN) ---
 exibir_logo()
 
 st.sidebar.markdown(
-    "<h2 style='color: white; text-align: center;'>Menu Principal</h2>",
-    unsafe_allow_html=True,
+    "<h3 style='text-align: center;'>Menu Principal</h3>", unsafe_allow_html=True
 )
 menu = st.sidebar.selectbox(
     "Navegação",
@@ -157,8 +106,8 @@ if menu == "📊 Painel Geral":
     )
     valor_estoque_custo = (
         (
-                st.session_state["estoque"]["Custo (R$)"]
-                * st.session_state["estoque"]["Quantidade"]
+            st.session_state["estoque"]["Custo (R$)"]
+            * st.session_state["estoque"]["Quantidade"]
         ).sum()
         if not st.session_state["estoque"].empty
         else 0
@@ -190,41 +139,42 @@ if menu == "📊 Painel Geral":
             st.session_state["estoque"], use_container_width=True, hide_index=True
         )
     else:
-        st.info("Nenhum móvel cadastrado ainda. Vá em 'Controle de Estoque'.")
+        st.info(
+            "Nenhum móvel cadastrado ainda. Vá no menu ao lado e selecione '🛋️ Controle de Estoque'."
+        )
 
 # --- CONTROLE DE ESTOQUE ---
 elif menu == "🛋️ Controle de Estoque":
     st.title("🛋️ Cadastro e Gestão de Móveis")
-    st.write("Adicione novos móveis informando modelo, produto, custo e venda.")
+    st.write(
+        "Adicione novos móveis informando o modelo, produto, custo e valor de venda."
+    )
 
-    with st.form("form_estoque", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            modelo = st.text_input(
-                "Modelo do Móvel (Ex: Retrô, Rústico, Moderno)"
-            )
-            produto = st.text_input(
-                "Nome do Produto (Ex: Guarda-Roupa, Mesa 6 Lugares)"
-            )
-            quantidade = st.number_input(
-                "Quantidade", min_value=1, step=1, value=1
-            )
-        with col2:
-            custo = st.number_input(
-                "Valor de Custo (Quanto pagou para comprar)",
-                min_value=0.0,
-                format="%.2f",
-            )
-            venda = st.number_input(
-                "Valor de Venda (Preço para o cliente)",
-                min_value=0.0,
-                format="%.2f",
-            )
-
-        submitted = st.form_submit_button(
-            "Cadastrar Móvel no Estoque", use_container_width=True
+    col1, col2 = st.columns(2)
+    with col1:
+        modelo = st.text_input(
+            "Modelo do Móvel (Ex: Retrô, Rústico)", key="cad_modelo"
         )
-        if submitted and modelo and produto:
+        produto = st.text_input(
+            "Nome do Produto (Ex: Guarda-Roupa)", key="cad_produto"
+        )
+        quantidade = st.number_input(
+            "Quantidade", min_value=1, step=1, value=1, key="cad_qtd"
+        )
+    with col2:
+        custo = st.number_input(
+            "Valor de Custo (R$)", min_value=0.0, format="%.2f", key="cad_custo"
+        )
+        venda = st.number_input(
+            "Valor de Venda (R$)", min_value=0.0, format="%.2f", key="cad_venda"
+        )
+
+    if st.button(
+        "💾 Cadastrar Móvel no Estoque",
+        use_container_width=True,
+        type="primary",
+    ):
+        if modelo.strip() and produto.strip():
             novo_id = len(st.session_state["estoque"]) + 1
             novo_item = pd.DataFrame(
                 [
@@ -241,15 +191,22 @@ elif menu == "🛋️ Controle de Estoque":
             st.session_state["estoque"] = pd.concat(
                 [st.session_state["estoque"], novo_item], ignore_index=True
             )
-            st.success("Móvel cadastrado com sucesso!")
-        elif submitted:
-            st.warning("Preencha o modelo e o nome do produto.")
+            st.success(
+                f"Móvel '{produto}' cadastrado com sucesso no estoque! 🎉"
+            )
+        else:
+            st.warning(
+                "Por favor, preencha o Modelo e o Nome do Produto antes de cadastrar."
+            )
 
+    st.markdown("---")
     st.subheader("Lista Completa do Estoque")
     if not st.session_state["estoque"].empty:
         st.dataframe(
             st.session_state["estoque"], use_container_width=True, hide_index=True
         )
+    else:
+        st.info("O estoque está vazio no momento.")
 
 # --- DESPESAS & CUSTOS ---
 elif menu == "💸 Despesas & Custos":
@@ -258,32 +215,34 @@ elif menu == "💸 Despesas & Custos":
         "Registre custos do comércio (Aluguel, Água, Combustível para entregas, etc)."
     )
 
-    with st.form("form_despesas", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            descricao = st.text_input(
-                "Descrição do Gasto (Ex: Aluguel da Loja, Gasolina Entrega)"
-            )
-            categoria = st.selectbox(
-                "Categoria",
-                [
-                    "Aluguel",
-                    "Água / Luz / Internet",
-                    "Combustível / Frete",
-                    "Manutenção",
-                    "Outros",
-                ],
-            )
-        with col2:
-            valor = st.number_input(
-                "Valor do Gasto (R$)", min_value=0.0, format="%.2f"
-            )
-            mes_ano = st.text_input("Mês/Ano (Ex: 03/2026)")
-
-        btn_despesa = st.form_submit_button(
-            "Registrar Despesa", use_container_width=True
+    col1, col2 = st.columns(2)
+    with col1:
+        descricao = st.text_input(
+            "Descrição do Gasto (Ex: Aluguel da Loja)", key="gasto_desc"
         )
-        if btn_despesa and descricao and mes_ano:
+        categoria = st.selectbox(
+            "Categoria",
+            [
+                "Aluguel",
+                "Água / Luz / Internet",
+                "Combustível / Frete",
+                "Manutenção",
+                "Outros",
+            ],
+            key="gasto_cat",
+        )
+    with col2:
+        valor = st.number_input(
+            "Valor do Gasto (R$)", min_value=0.0, format="%.2f", key="gasto_val"
+        )
+        mes_ano = st.text_input(
+            "Mês/Ano (Ex: 03/2026)", value="03/2026", key="gasto_mes"
+        )
+
+    if st.button(
+        "💾 Registrar Despesa", use_container_width=True, type="primary"
+    ):
+        if descricao.strip() and mes_ano.strip():
             nova_despesa = pd.DataFrame(
                 [
                     {
@@ -297,10 +256,13 @@ elif menu == "💸 Despesas & Custos":
             st.session_state["despesas"] = pd.concat(
                 [st.session_state["despesas"], nova_despesa], ignore_index=True
             )
-            st.success("Despesa salva com sucesso!")
-        elif btn_despesa:
-            st.warning("Preencha a descrição e o mês/ano.")
+            st.success("Despesa salva com sucesso! 💸")
+        else:
+            st.warning(
+                "Preencha a descrição e o mês/ano para registrar a despesa."
+            )
 
+    st.markdown("---")
     st.subheader("Histórico de Despesas")
     if not st.session_state["despesas"].empty:
         st.dataframe(
@@ -314,66 +276,63 @@ elif menu == "💰 Registrar Venda":
     if st.session_state["estoque"].empty:
         st.warning("Cadastre produtos no estoque antes de registrar vendas.")
     else:
-        with st.form("form_venda", clear_on_submit=True):
-            produtos_disponiveis = st.session_state["estoque"][
-                "Produto"
-            ].tolist()
-            produto_escolhido = st.selectbox(
-                "Selecione o Móvel Vendido", produtos_disponiveis
-            )
-            qtd_vendida = st.number_input(
-                "Quantidade Vendida", min_value=1, step=1, value=1
-            )
-            data_venda = st.text_input("Mês/Ano da Venda (Ex: 03/2026)")
+        produtos_disponiveis = st.session_state["estoque"]["Produto"].tolist()
+        produto_escolhido = st.selectbox(
+            "Selecione o Móvel Vendido", produtos_disponiveis, key="venda_prod"
+        )
+        qtd_vendida = st.number_input(
+            "Quantidade Vendida", min_value=1, step=1, value=1, key="venda_qtd"
+        )
+        data_venda = st.text_input(
+            "Mês/Ano da Venda (Ex: 03/2026)", value="03/2026", key="venda_data"
+        )
 
-            btn_venda = st.form_submit_button(
-                "Concluir Venda", use_container_width=True
-            )
+        if st.button(
+            "💾 Concluir Venda", use_container_width=True, type="primary"
+        ):
+            item_idx = st.session_state["estoque"][
+                st.session_state["estoque"]["Produto"] == produto_escolhido
+            ].index[0]
+            estoque_atual = st.session_state["estoque"].loc[
+                item_idx, "Quantidade"
+            ]
 
-            if btn_venda and data_venda:
-                item_idx = st.session_state["estoque"][
-                    st.session_state["estoque"]["Produto"] == produto_escolhido
-                    ].index[0]
-                estoque_atual = st.session_state["estoque"].loc[
-                    item_idx, "Quantidade"
+            if qtd_vendida <= estoque_atual:
+                preco_venda = st.session_state["estoque"].loc[
+                    item_idx, "Venda (R$)"
+                ]
+                preco_custo = st.session_state["estoque"].loc[
+                    item_idx, "Custo (R$)"
                 ]
 
-                if qtd_vendida <= estoque_atual:
-                    preco_venda = st.session_state["estoque"].loc[
-                        item_idx, "Venda (R$)"
+                val_total = preco_venda * qtd_vendida
+                lucro_bruto = (preco_venda - preco_custo) * qtd_vendida
+
+                st.session_state["estoque"].loc[item_idx, "Quantidade"] = (
+                    estoque_atual - qtd_vendida
+                )
+
+                nova_venda = pd.DataFrame(
+                    [
+                        {
+                            "Produto": produto_escolhido,
+                            "Quantidade": qtd_vendida,
+                            "Valor Total": val_total,
+                            "Lucro Bruto": lucro_bruto,
+                            "Data/Mês": data_venda,
+                        }
                     ]
-                    preco_custo = st.session_state["estoque"].loc[
-                        item_idx, "Custo (R$)"
-                    ]
+                )
+                st.session_state["vendas"] = pd.concat(
+                    [st.session_state["vendas"], nova_venda], ignore_index=True
+                )
+                st.success(
+                    f"Venda efetuada com sucesso! Lucro bruto: R$ {lucro_bruto:.2f} 🚀"
+                )
+            else:
+                st.error("Quantidade vendida maior do que o estoque atual!")
 
-                    val_total = preco_venda * qtd_vendida
-                    lucro_bruto = (preco_venda - preco_custo) * qtd_vendida
-
-                    st.session_state["estoque"].loc[item_idx, "Quantidade"] = (
-                            estoque_atual - qtd_vendida
-                    )
-
-                    nova_venda = pd.DataFrame(
-                        [
-                            {
-                                "Produto": produto_escolhido,
-                                "Quantidade": qtd_vendida,
-                                "Valor Total": val_total,
-                                "Lucro Bruto": lucro_bruto,
-                                "Data/Mês": data_venda,
-                            }
-                        ]
-                    )
-                    st.session_state["vendas"] = pd.concat(
-                        [st.session_state["vendas"], nova_venda],
-                        ignore_index=True,
-                    )
-                    st.success(
-                        f"Venda efetuada com sucesso! Lucro bruto: R$ {lucro_bruto:.2f}"
-                    )
-                else:
-                    st.error("Quantidade vendida maior do que o estoque atual!")
-
+    st.markdown("---")
     st.subheader("Histórico de Vendas")
     if not st.session_state["vendas"].empty:
         st.dataframe(
@@ -388,10 +347,12 @@ elif menu == "📈 Fechamento & Relatório":
     )
 
     mes_filtro = st.text_input(
-        "Digite o Mês/Ano para Fechamento (Ex: 03/2026)", value="03/2026"
+        "Digite o Mês/Ano para Fechamento (Ex: 03/2026)",
+        value="03/2026",
+        key="fech_mes",
     )
 
-    if st.button("Calcular Fechamento Mensal", use_container_width=True):
+    if st.button("📊 Calcular Fechamento Mensal", use_container_width=True):
         vendas_mes = st.session_state["vendas"]
         if not vendas_mes.empty and "Data/Mês" in vendas_mes.columns:
             vendas_filtradas = vendas_mes[vendas_mes["Data/Mês"] == mes_filtro]
@@ -408,12 +369,13 @@ elif menu == "📈 Fechamento & Relatório":
         else:
             total_faturamento = 0
             total_lucro_bruto = 0
+            vendas_filtradas = pd.DataFrame()
 
         despesas_mes = st.session_state["despesas"]
         if not despesas_mes.empty and "Mês/Ano" in despesas_mes.columns:
             despesas_filtradas = despesas_mes[
                 despesas_mes["Mês/Ano"] == mes_filtro
-                ]
+            ]
             total_despesas_mes = (
                 despesas_filtradas["Valor (R$)"].sum()
                 if not despesas_filtradas.empty
@@ -421,6 +383,7 @@ elif menu == "📈 Fechamento & Relatório":
             )
         else:
             total_despesas_mes = 0
+            despesas_filtradas = pd.DataFrame()
 
         lucro_liquido = total_lucro_bruto - total_despesas_mes
 
@@ -449,7 +412,6 @@ elif menu == "📈 Fechamento & Relatório":
                 f"Atenção! No mês **{mes_filtro}**, as despesas superaram o ganho. Prejuízo de **R$ {lucro_liquido:.2f}**."
             )
 
-        # Opção para exportar relatório em CSV para o lojista guardar
         if not vendas_filtradas.empty or not despesas_filtradas.empty:
             st.markdown("---")
             st.subheader("📥 Baixar Relatório do Mês")
@@ -459,7 +421,6 @@ elif menu == "📈 Fechamento & Relatório":
                 data=relatorio_texto,
                 file_name=f"relatorio_{mes_filtro.replace('/', '-')}.txt",
                 mime="text/plain",
-                use_container_width=True,
             )
 
 # --- FECHAR MÊS / ZERAR ---
@@ -470,7 +431,7 @@ elif menu == "🔄 Fechar Mês / Zerar":
     )
 
     confirmar = st.checkbox("Estou ciente e quero zerar os registros do mês")
-    if st.button("Zerar Vendas e Despesas", use_container_width=True):
+    if st.button("🔄 Zerar Vendas e Despesas", use_container_width=True):
         if confirmar:
             st.session_state["vendas"] = pd.DataFrame(
                 columns=[
@@ -496,7 +457,7 @@ elif menu == "🔄 Fechar Mês / Zerar":
 st.markdown("---")
 st.markdown(
     """
-    <div style="text-align: center; color: #666; font-size: 13px; padding-bottom: 20px;">
+    <div style="text-align: center; color: gray; font-size: 13px; padding-bottom: 20px;">
         <b>R - Gestão Comercial</b> | Desenvolvido para Pequenos Comércios e Lojas
     </div>
     """,
