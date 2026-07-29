@@ -18,6 +18,8 @@ def conectar_banco():
 def inicializar_banco():
     conn = conectar_banco()
     cursor = conn.cursor()
+
+    # Tabela de Finanças / Caixa
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS transacoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,10 +30,23 @@ def inicializar_banco():
             valor REAL
         )
     ''')
+
+    # Tabela de Estoque Geral de Produtos
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS estoque (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            produto TEXT UNIQUE,
+            categoria TEXT,
+            quantidade INTEGER,
+            preco_unitario REAL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
 
+# --- Funções do Financeiro ---
 def salvar_transacao(data, tipo, categoria, descricao, valor):
     conn = conectar_banco()
     cursor = conn.cursor()
@@ -53,7 +68,60 @@ def carregar_transacoes():
     return df
 
 
-# Inicializa o banco ao carregar o aplicativo
+# --- Funções do Estoque ---
+def salvar_ou_atualizar_estoque(produto, categoria, qtd, preco):
+    conn = conectar_banco()
+    cursor = conn.cursor()
+    cursor.execute("SELECT quantidade FROM estoque WHERE produto = ?", (produto,))
+    item = cursor.fetchone()
+
+    if item:
+        nova_qtd = item[0] + qtd
+        cursor.execute('''
+            UPDATE estoque SET quantidade = ?, preco_unitario = ?, categoria = ? WHERE produto = ?
+        ''', (nova_qtd, preco, categoria, produto))
+    else:
+        cursor.execute('''
+            INSERT INTO estoque (produto, categoria, quantidade, preco_unitario)
+            VALUES (?, ?, ?, ?)
+        ''', (produto, categoria, qtd, preco))
+
+    conn.commit()
+    conn.close()
+
+
+def dar_baixa_estoque(produto, qtd_saida):
+    conn = conectar_banco()
+    cursor = conn.cursor()
+    cursor.execute("SELECT quantidade FROM estoque WHERE produto = ?", (produto,))
+    item = cursor.fetchone()
+
+    if item:
+        qtd_atual = item[0]
+        if qtd_atual >= qtd_saida:
+            nova_qtd = qtd_atual - qtd_saida
+            cursor.execute("UPDATE estoque SET quantidade = ? WHERE produto = ?", (nova_qtd, produto))
+            conn.commit()
+            conn.close()
+            return True, f"Baixa de {qtd_saida} unidade(s) de '{produto}' realizada com sucesso!"
+        else:
+            conn.close()
+            return False, f"Estoque insuficiente! Quantidade atual disponível: {qtd_atual}"
+    conn.close()
+    return False, "Produto não encontrado no estoque."
+
+
+def carregar_estoque():
+    conn = conectar_banco()
+    df = pd.read_sql_query(
+        "SELECT produto as Produto, categoria as Categoria, quantidade as [Qtd em Estoque], preco_unitario as [Preço Unitário (R$)] FROM estoque ORDER BY produto ASC",
+        conn
+    )
+    conn.close()
+    return df
+
+
+# Inicializa o banco de dados
 inicializar_banco()
 
 # ---------------------------------------------------------
@@ -63,7 +131,6 @@ CAMINHO_LOGO = os.path.join("static", "logo.png")
 
 
 def exibir_logo():
-    """Exibe o logo da pasta static se existir; caso contrário, exibe o título em texto."""
     if os.path.exists(CAMINHO_LOGO):
         img = Image.open(CAMINHO_LOGO)
         st.image(img, width=180)
@@ -72,17 +139,17 @@ def exibir_logo():
 
 
 # ---------------------------------------------------------
-# CONFIGURAÇÃO DA PÁGINA (OTIMIZADA PARA CELULAR)
+# CONFIGURAÇÃO DA PÁGINA
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Mário Móveis - Gestão Financeira",
+    page_title="Mário Móveis - Gestão Comercial",
     page_icon="🪵",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ---------------------------------------------------------
-# AUTENTICAÇÃO E LOGIN DE ACESSO
+# AUTENTICAÇÃO E LOGIN
 # ---------------------------------------------------------
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -92,8 +159,8 @@ SENHA_SISTEMA = "mario2026"
 
 
 def tela_login():
-    exibir_logo()  # <-- LOGO NA TELA DE LOGIN
-    st.caption("🔒 Acesso Restrito - Gestão Financeira")
+    exibir_logo()
+    st.caption("🔒 Painel de Controle e Gestão Comercial")
 
     with st.form("form_login"):
         usuario = st.text_input("Usuário")
@@ -114,99 +181,163 @@ if not st.session_state.logado:
     st.stop()
 
 # ---------------------------------------------------------
-# PAINEL PRINCIPAL (ÁREA LOGADA)
+# PAINEL PRINCIPAL
 # ---------------------------------------------------------
 
-# Menu Lateral (Sidebar)
 with st.sidebar:
-    exibir_logo()  # <-- LOGO NO MENU LATERAL
+    exibir_logo()
     st.write("Painel de Controle")
     st.divider()
     if st.button("🚪 Sair do Sistema", use_container_width=True):
         st.session_state.logado = False
         st.rerun()
 
-# Topo da página principal
-exibir_logo()  # <-- LOGO NO TOPO DO PAINEL PRINCIPAL
-st.title("📊 Gestão Financeira e Controle de Caixa")
+exibir_logo()
 
-# ---------------------------------------------------------
-# FORMULÁRIO DE CADASTRO DE LANÇAMENTOS
-# ---------------------------------------------------------
-st.subheader("➕ Novo Lançamento")
+# Navegação por Abas
+aba_financeiro, aba_estoque = st.tabs(["📊 Controle Financeiro e Caixa", "📦 Gestão de Estoque e Produtos"])
 
-with st.form("form_lancamento", clear_on_submit=True):
-    tipo_operacao = st.selectbox("Tipo", ["Despesa", "Receita"])
+# =========================================================
+# ABA 1: CONTROLE FINANCEIRO
+# =========================================================
+with aba_financeiro:
+    st.title("📊 Gestão Financeira e Caixa")
+    st.subheader("➕ Novo Lançamento")
 
-    if tipo_operacao == "Despesa":
-        lista_categorias = [
-            "Transporte / Frete",
-            "Combustível / Uber",
-            "Matéria-Prima / Madeira",
-            "Ferragens / Insumos",
-            "Aluguel / Oficina",
-            "Energia / Água",
-            "Salários / Ajudantes",
-            "Manutenção de Ferramentas",
-            "Outras Despesas"
-        ]
+    with st.form("form_lancamento", clear_on_submit=True):
+        tipo_operacao = st.selectbox("Tipo de Operação", ["Despesa", "Receita"])
+
+        if tipo_operacao == "Despesa":
+            lista_categorias = [
+                "Transporte / Frete",
+                "Combustível / Uber",
+                "Matéria-Prima / Insumos",
+                "Ferragens / Ferramentas",
+                "Aluguel / Oficina",
+                "Energia / Água",
+                "Salários / Ajudantes",
+                "Manutenção",
+                "Outras Despesas"
+            ]
+        else:
+            lista_categorias = [
+                "Venda de Produtos",
+                "Serviços e Manutenção",
+                "Entradas de Encomendas (Sinal)",
+                "Outras Receitas"
+            ]
+
+        categoria_sel = st.selectbox("Categoria", lista_categorias)
+        descricao_obs = st.text_input("Descrição", placeholder="Ex: Pagamento de frete / Venda para cliente Maria")
+        valor_lancado = st.number_input("Valor (R$)", min_value=0.01, step=50.0, format="%.2f")
+        data_reg = st.date_input("Data", datetime.now())
+
+        salvar_fin = st.form_submit_button("💾 Salvar Lançamento", use_container_width=True)
+
+    if salvar_fin:
+        salvar_transacao(
+            data=data_reg.strftime("%d/%m/%Y"),
+            tipo=tipo_operacao,
+            categoria=categoria_sel,
+            descricao=descricao_obs,
+            valor=valor_lancado
+        )
+        st.success("Lançamento registrado com sucesso!")
+
+    st.divider()
+    st.subheader("📈 Resumo Financeiro")
+
+    df_caixa = carregar_transacoes()
+
+    if not df_caixa.empty:
+        total_entradas = df_caixa[df_caixa["Tipo"] == "Receita"]["Valor (R$)"].sum()
+        total_saidas = df_caixa[df_caixa["Tipo"] == "Despesa"]["Valor (R$)"].sum()
+        gastos_transporte = df_caixa[df_caixa["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])][
+            "Valor (R$)"].sum()
+        saldo_caixa = total_entradas - total_saidas
+
+        col1, col2 = st.columns(2)
+        col1.metric("Total Entradas / Receitas", f"R$ {total_entradas:,.2f}")
+        col2.metric("Total Saídas / Despesas", f"R$ {total_saidas:,.2f}")
+
+        col3, col4 = st.columns(2)
+        col3.metric("Custos c/ Transporte", f"R$ {gastos_transporte:,.2f}")
+        col4.metric("Saldo Em Caixa", f"R$ {saldo_caixa:,.2f}")
+
+        st.write("---")
+        st.subheader("📋 Histórico de Lançamentos")
+        st.dataframe(df_caixa, use_container_width=True)
     else:
-        lista_categorias = [
-            "Venda de Móveis Sob Medida",
-            "Serviços de Restauração",
-            "Entradas de Encomendas (Sinal)",
-            "Outras Receitas"
-        ]
+        st.info("Nenhum lançamento registrado no momento.")
 
-    categoria_sel = st.selectbox("Categoria", lista_categorias)
-    descricao_obs = st.text_input("Descrição", placeholder="Ex: Entrega do armário na cliente Maria")
-    valor_lancado = st.number_input("Valor (R$)", min_value=0.01, step=50.0, format="%.2f")
-    data_reg = st.date_input("Data", datetime.now())
+# =========================================================
+# ABA 2: GESTÃO DE ESTOQUE DE PRODUTOS
+# =========================================================
+with aba_estoque:
+    st.title("📦 Controle de Estoque de Produtos e Insumos")
 
-    salvar = st.form_submit_button("💾 Salvar Registro", use_container_width=True)
+    col_add, col_baixa = st.columns(2)
 
-if salvar:
-    # Salva diretamente no Banco de Dados
-    salvar_transacao(
-        data=data_reg.strftime("%d/%m/%Y"),
-        tipo=tipo_operacao,
-        categoria=categoria_sel,
-        descricao=descricao_obs,
-        valor=valor_lancado
-    )
-    st.success("Lançamento salvo com sucesso no Banco de Dados!")
+    # Formulário para Cadastro / Entrada de Produtos
+    with col_add:
+        st.subheader("➕ Entrada de Produto / Material")
+        with st.form("form_add_estoque", clear_on_submit=True):
+            nome_produto = st.text_input("Nome do Produto / Material",
+                                         placeholder="Ex: Chapa MDF 18mm / Puxador Inox / Cadeira")
+            cat_produto = st.selectbox("Categoria", ["Produto Acabado", "Matéria-Prima", "Ferragem / Acessório",
+                                                     "Insumo / Ferramenta", "Outro"])
+            qtd_produto = st.number_input("Quantidade a Adicionar", min_value=1, step=1, value=1)
+            preco_unit = st.number_input("Preço / Custo Unitário (R$)", min_value=0.0, step=50.0, format="%.2f")
 
-st.divider()
+            btn_add_est = st.form_submit_button("📥 Adicionar ao Estoque", use_container_width=True)
 
-# ---------------------------------------------------------
-# DASHBOARD DE RESULTADOS E RESUMO FINANCEIRO
-# ---------------------------------------------------------
-st.subheader("📈 Resumo do Mês")
+            if btn_add_est:
+                if nome_produto.strip() != "":
+                    salvar_ou_atualizar_estoque(nome_produto.strip(), cat_produto, qtd_produto, preco_unit)
+                    st.success(f"Estoque de '{nome_produto}' atualizado!")
+                else:
+                    st.warning("Por favor, digite o nome do produto.")
 
-# Busca sempre do Banco de Dados
-df_caixa = carregar_transacoes()
+    # Formulário para Dar Baixa no Estoque
+    with col_baixa:
+        st.subheader("➖ Saída / Baixa do Estoque")
+        df_est_atual = carregar_estoque()
 
-if not df_caixa.empty:
-    total_entradas = df_caixa[df_caixa["Tipo"] == "Receita"]["Valor (R$)"].sum()
-    total_saidas = df_caixa[df_caixa["Tipo"] == "Despesa"]["Valor (R$)"].sum()
-    gastos_transporte = df_caixa[df_caixa["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])][
-        "Valor (R$)"].sum()
-    saldo_caixa = total_entradas - total_saidas
+        if not df_est_atual.empty:
+            lista_produtos = df_est_atual["Produto"].tolist()
+            with st.form("form_baixa_estoque", clear_on_submit=True):
+                prod_selecionado = st.selectbox("Selecione o Item", lista_produtos)
+                qtd_baixa = st.number_input("Quantidade Utilizada / Vendida", min_value=1, step=1, value=1)
 
-    # Exibição adaptada para telas menores
-    col1, col2 = st.columns(2)
-    col1.metric("Vendas / Receitas", f"R$ {total_entradas:,.2f}")
-    col2.metric("Total Despesas", f"R$ {total_saidas:,.2f}")
+                btn_baixa = st.form_submit_button("📤 Confirmar Saída", use_container_width=True)
 
-    col3, col4 = st.columns(2)
-    col3.metric("Frete / Transporte", f"R$ {gastos_transporte:,.2f}")
-    col4.metric("Saldo Em Caixa", f"R$ {saldo_caixa:,.2f}")
+                if btn_baixa:
+                    sucesso, msg = dar_baixa_estoque(prod_selecionado, qtd_baixa)
+                    if sucesso:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+        else:
+            st.info("Cadastre produtos no formulário ao lado para liberar a baixa.")
 
-    st.write("---")
-    st.subheader("📋 Histórico de Transações Salvas")
-    st.dataframe(df_caixa, use_container_width=True)
-else:
-    st.info("Nenhum lançamento cadastrado no momento.")
+    st.divider()
+    st.subheader("📋 Relatório do Estoque Atual")
+
+    df_estoque = carregar_estoque()
+    if not df_estoque.empty:
+        df_estoque["Valor Total Estimado (R$)"] = df_estoque["Qtd em Estoque"] * df_estoque["Preço Unitário (R$)"]
+
+        m1, m2 = st.columns(2)
+        m1.metric("Variedade de Itens Cadastrados", len(df_estoque))
+        m2.metric("Valor Total Parado em Estoque", f"R$ {df_estoque['Valor Total Estimado (R$)'].sum():,.2f}")
+
+        st.dataframe(df_estoque, use_container_width=True)
+    else:
+        st.info("Nenhum item cadastrado no estoque no momento.")
+
+        
+
+
 
 
 
