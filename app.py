@@ -1,14 +1,33 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from PIL import Image
+import os
 
 # ---------------------------------------------------------
-# CONFIGURAÇÃO DA PÁGINA (SISTEMA DE GESTÃO - MÁRIO MÓVEIS)
+# CARREGAMENTO SEGURO DA LOGO (PIL / Pillow)
+# ---------------------------------------------------------
+# Garante que o arquivo 'logo.png' da pasta 'static' seja lido corretamente
+CAMINHO_LOGO = os.path.join("static", "logo.png")
+
+
+def exibir_logo():
+    """Tenta exibir a imagem do logo. Se não encontrar, exibe o título textual."""
+    if os.path.exists(CAMINHO_LOGO):
+        img = Image.open(CAMINHO_LOGO)
+        st.image(img, width=180)
+    else:
+        st.title("🪵 Mário Móveis")
+
+
+# ---------------------------------------------------------
+# CONFIGURAÇÃO DA PÁGINA (OTIMIZADA PARA CELULAR)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Mário Móveis - Gestão Financeira",
     page_icon="🪵",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # ---------------------------------------------------------
@@ -23,15 +42,15 @@ SENHA_SISTEMA = "mario2026"
 
 
 def tela_login():
-    st.title("🔒 Mário Móveis - Acesso Restrito")
-    st.write("Digite o usuário e senha para acessar o painel financeiro.")
+    exibir_logo()
+    st.caption("🔒 Acesso Restrito - Gestão Financeira")
 
-    col_login, _ = st.columns([1, 1])
-    with col_login:
+    with st.form("form_login"):
         usuario = st.text_input("Usuário")
         senha = st.text_input("Senha", type="password")
+        submit = st.form_submit_button("Entrar no Sistema", use_container_width=True)
 
-        if st.button("Entrar no Sistema"):
+        if submit:
             if usuario == USUARIO_SISTEMA and senha == SENHA_SISTEMA:
                 st.session_state.logado = True
                 st.success("Acesso liberado!")
@@ -48,15 +67,17 @@ if not st.session_state.logado:
 # PAINEL PRINCIPAL (ÁREA LOGADA)
 # ---------------------------------------------------------
 
-# Menu Lateral
+# Menu Lateral (Sidebar)
 with st.sidebar:
-    st.title("🪵 Mário Móveis")
+    exibir_logo()
     st.write("Painel de Controle")
     st.divider()
-    if st.button("🚪 Sair do Sistema"):
+    if st.button("🚪 Sair do Sistema", use_container_width=True):
         st.session_state.logado = False
         st.rerun()
 
+# Topo da página principal
+exibir_logo()
 st.title("📊 Gestão Financeira e Controle de Caixa")
 
 # Inicialização do Banco de Dados Temporário
@@ -70,15 +91,12 @@ if "transacoes" not in st.session_state:
 # ---------------------------------------------------------
 st.subheader("➕ Novo Lançamento")
 
-c_tipo, c_cat, c_desc, c_val, c_data = st.columns([1.5, 2, 2.5, 1.5, 1.5])
-
-with c_tipo:
+with st.form("form_lancamento", clear_on_submit=True):
     tipo_operacao = st.selectbox("Tipo", ["Despesa", "Receita"])
 
-with c_cat:
     if tipo_operacao == "Despesa":
         lista_categorias = [
-            "Transporte / Frete",  # Custo de transporte incluído
+            "Transporte / Frete",
             "Combustível / Uber",
             "Matéria-Prima / Madeira",
             "Ferragens / Insumos",
@@ -95,18 +113,15 @@ with c_cat:
             "Entradas de Encomendas (Sinal)",
             "Outras Receitas"
         ]
+
     categoria_sel = st.selectbox("Categoria", lista_categorias)
-
-with c_desc:
     descricao_obs = st.text_input("Descrição", placeholder="Ex: Entrega do armário na cliente Maria")
-
-with c_val:
     valor_lancado = st.number_input("Valor (R$)", min_value=0.01, step=50.0, format="%.2f")
-
-with c_data:
     data_reg = st.date_input("Data", datetime.now())
 
-if st.button("💾 Salvar Registro", use_container_width=True):
+    salvar = st.form_submit_button("💾 Salvar Registro", use_container_width=True)
+
+if salvar:
     novo_dado = {
         "Data": data_reg.strftime("%d/%m/%Y"),
         "Tipo": tipo_operacao,
@@ -136,17 +151,19 @@ if not df_caixa.empty:
     # Soma exclusiva dos custos com frete/transporte
     gastos_transporte = df_caixa[df_caixa["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])][
         "Valor (R$)"].sum()
-
     saldo_caixa = total_entradas - total_saidas
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total de Vendas / Receitas", f"R$ {total_entradas:,.2f}")
-    col2.metric("Total de Despesas", f"R$ {total_saidas:,.2f}")
-    col3.metric("Custos c/ Transporte/Frete", f"R$ {gastos_transporte:,.2f}")
+    # Exibição organizada em duas colunas para fácil leitura na tela do celular
+    col1, col2 = st.columns(2)
+    col1.metric("Vendas / Receitas", f"R$ {total_entradas:,.2f}")
+    col2.metric("Total Despesas", f"R$ {total_saidas:,.2f}")
+
+    col3, col4 = st.columns(2)
+    col3.metric("Frete / Transporte", f"R$ {gastos_transporte:,.2f}")
     col4.metric("Saldo Em Caixa", f"R$ {saldo_caixa:,.2f}")
 
     st.write("---")
-    st.subheader("📋 Historico de Transações")
+    st.subheader("📋 Histórico de Transações")
     st.dataframe(df_caixa, use_container_width=True)
 else:
     st.info("Nenhum lançamento cadastrado no momento.")
