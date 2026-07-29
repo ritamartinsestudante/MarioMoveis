@@ -3,16 +3,67 @@ import pandas as pd
 from datetime import datetime
 from PIL import Image
 import os
+import sqlite3
+
+# ---------------------------------------------------------
+# BANCO DE DADOS PERMANENTE (SQLite)
+# ---------------------------------------------------------
+NOME_BANCO = "mario_moveis.db"
+
+
+def conectar_banco():
+    return sqlite3.connect(NOME_BANCO)
+
+
+def inicializar_banco():
+    conn = conectar_banco()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT,
+            tipo TEXT,
+            categoria TEXT,
+            descricao TEXT,
+            valor REAL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+
+def salvar_transacao(data, tipo, categoria, descricao, valor):
+    conn = conectar_banco()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO transacoes (data, tipo, categoria, descricao, valor)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (data, tipo, categoria, descricao, valor))
+    conn.commit()
+    conn.close()
+
+
+def carregar_transacoes():
+    conn = conectar_banco()
+    df = pd.read_sql_query(
+        "SELECT data as Data, tipo as Tipo, categoria as Categoria, descricao as Descrição, valor as [Valor (R$)] FROM transacoes ORDER BY id DESC",
+        conn
+    )
+    conn.close()
+    return df
+
+
+# Inicializa o banco ao carregar o aplicativo
+inicializar_banco()
 
 # ---------------------------------------------------------
 # CARREGAMENTO SEGURO DA LOGO (PIL / Pillow)
 # ---------------------------------------------------------
-# Garante que o arquivo 'logo.png' da pasta 'static' seja lido corretamente
 CAMINHO_LOGO = os.path.join("static", "logo.png")
 
 
 def exibir_logo():
-    """Tenta exibir a imagem do logo. Se não encontrar, exibe o título textual."""
+    """Exibe o logo da pasta static se existir; caso contrário, exibe o título em texto."""
     if os.path.exists(CAMINHO_LOGO):
         img = Image.open(CAMINHO_LOGO)
         st.image(img, width=180)
@@ -36,13 +87,12 @@ st.set_page_config(
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
-# Credenciais de acesso
 USUARIO_SISTEMA = "mario"
 SENHA_SISTEMA = "mario2026"
 
 
 def tela_login():
-    exibir_logo()
+    exibir_logo()  # <-- LOGO NA TELA DE LOGIN
     st.caption("🔒 Acesso Restrito - Gestão Financeira")
 
     with st.form("form_login"):
@@ -69,7 +119,7 @@ if not st.session_state.logado:
 
 # Menu Lateral (Sidebar)
 with st.sidebar:
-    exibir_logo()
+    exibir_logo()  # <-- LOGO NO MENU LATERAL
     st.write("Painel de Controle")
     st.divider()
     if st.button("🚪 Sair do Sistema", use_container_width=True):
@@ -77,14 +127,8 @@ with st.sidebar:
         st.rerun()
 
 # Topo da página principal
-exibir_logo()
+exibir_logo()  # <-- LOGO NO TOPO DO PAINEL PRINCIPAL
 st.title("📊 Gestão Financeira e Controle de Caixa")
-
-# Inicialização do Banco de Dados Temporário
-if "transacoes" not in st.session_state:
-    st.session_state.transacoes = pd.DataFrame(columns=[
-        "Data", "Tipo", "Categoria", "Descrição", "Valor (R$)"
-    ])
 
 # ---------------------------------------------------------
 # FORMULÁRIO DE CADASTRO DE LANÇAMENTOS
@@ -122,18 +166,15 @@ with st.form("form_lancamento", clear_on_submit=True):
     salvar = st.form_submit_button("💾 Salvar Registro", use_container_width=True)
 
 if salvar:
-    novo_dado = {
-        "Data": data_reg.strftime("%d/%m/%Y"),
-        "Tipo": tipo_operacao,
-        "Categoria": categoria_sel,
-        "Descrição": descricao_obs,
-        "Valor (R$)": valor_lancado
-    }
-    st.session_state.transacoes = pd.concat([
-        st.session_state.transacoes,
-        pd.DataFrame([novo_dado])
-    ], ignore_index=True)
-    st.success("Lançamento adicionado com sucesso!")
+    # Salva diretamente no Banco de Dados
+    salvar_transacao(
+        data=data_reg.strftime("%d/%m/%Y"),
+        tipo=tipo_operacao,
+        categoria=categoria_sel,
+        descricao=descricao_obs,
+        valor=valor_lancado
+    )
+    st.success("Lançamento salvo com sucesso no Banco de Dados!")
 
 st.divider()
 
@@ -142,18 +183,17 @@ st.divider()
 # ---------------------------------------------------------
 st.subheader("📈 Resumo do Mês")
 
-df_caixa = st.session_state.transacoes
+# Busca sempre do Banco de Dados
+df_caixa = carregar_transacoes()
 
 if not df_caixa.empty:
     total_entradas = df_caixa[df_caixa["Tipo"] == "Receita"]["Valor (R$)"].sum()
     total_saidas = df_caixa[df_caixa["Tipo"] == "Despesa"]["Valor (R$)"].sum()
-
-    # Soma exclusiva dos custos com frete/transporte
     gastos_transporte = df_caixa[df_caixa["Categoria"].isin(["Transporte / Frete", "Combustível / Uber"])][
         "Valor (R$)"].sum()
     saldo_caixa = total_entradas - total_saidas
 
-    # Exibição organizada em duas colunas para fácil leitura na tela do celular
+    # Exibição adaptada para telas menores
     col1, col2 = st.columns(2)
     col1.metric("Vendas / Receitas", f"R$ {total_entradas:,.2f}")
     col2.metric("Total Despesas", f"R$ {total_saidas:,.2f}")
@@ -163,10 +203,11 @@ if not df_caixa.empty:
     col4.metric("Saldo Em Caixa", f"R$ {saldo_caixa:,.2f}")
 
     st.write("---")
-    st.subheader("📋 Histórico de Transações")
+    st.subheader("📋 Histórico de Transações Salvas")
     st.dataframe(df_caixa, use_container_width=True)
 else:
     st.info("Nenhum lançamento cadastrado no momento.")
+
 
 
 
