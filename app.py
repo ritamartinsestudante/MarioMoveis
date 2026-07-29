@@ -37,10 +37,32 @@ def inicializar_banco():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             produto TEXT UNIQUE,
             categoria TEXT,
+            estado TEXT DEFAULT 'Móvel Novo ✨',
             quantidade INTEGER,
             preco_unitario REAL
         )
     ''')
+
+    # Tabela de Vendas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vendas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT,
+            cliente TEXT,
+            produto TEXT,
+            estado_movel TEXT,
+            quantidade INTEGER,
+            preco_unitario REAL,
+            valor_total REAL,
+            forma_pagamento TEXT
+        )
+    ''')
+
+    # Migration simples caso a coluna 'estado' ainda não exista na tabela estoque antiga
+    try:
+        cursor.execute("ALTER TABLE estoque ADD COLUMN estado TEXT DEFAULT 'Móvel Novo ✨'")
+    except sqlite3.OperationalError:
+        pass  # A coluna já existe
 
     conn.commit()
     conn.close()
@@ -69,7 +91,7 @@ def carregar_transacoes():
 
 
 # --- Funções do Estoque ---
-def salvar_ou_atualizar_estoque(produto, categoria, qtd, preco):
+def salvar_ou_atualizar_estoque(produto, categoria, estado, qtd, preco):
     conn = conectar_banco()
     cursor = conn.cursor()
     cursor.execute("SELECT quantidade FROM estoque WHERE produto = ?", (produto,))
@@ -78,13 +100,13 @@ def salvar_ou_atualizar_estoque(produto, categoria, qtd, preco):
     if item:
         nova_qtd = item[0] + qtd
         cursor.execute('''
-            UPDATE estoque SET quantidade = ?, preco_unitario = ?, categoria = ? WHERE produto = ?
-        ''', (nova_qtd, preco, categoria, produto))
+            UPDATE estoque SET quantidade = ?, preco_unitario = ?, categoria = ?, estado = ? WHERE produto = ?
+        ''', (nova_qtd, preco, categoria, estado, produto))
     else:
         cursor.execute('''
-            INSERT INTO estoque (produto, categoria, quantidade, preco_unitario)
-            VALUES (?, ?, ?, ?)
-        ''', (produto, categoria, qtd, preco))
+            INSERT INTO estoque (produto, categoria, estado, quantidade, preco_unitario)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (produto, categoria, estado, qtd, preco))
 
     conn.commit()
     conn.close()
@@ -114,7 +136,49 @@ def dar_baixa_estoque(produto, qtd_saida):
 def carregar_estoque():
     conn = conectar_banco()
     df = pd.read_sql_query(
-        "SELECT produto as Produto, categoria as Categoria, quantidade as [Qtd em Estoque], preco_unitario as [Preço Unitário (R$)] FROM estoque ORDER BY produto ASC",
+        "SELECT produto as Produto, categoria as Categoria, estado as [Estado (Novo/Usado)], quantidade as [Qtd em Estoque], preco_unitario as [Preço Unitário (R$)] FROM estoque ORDER BY produto ASC",
+        conn
+    )
+    conn.close()
+    return df
+
+
+# --- Funções de Vendas ---
+def registrar_venda(data, cliente, produto, estado_movel, qtd, preco_unit, forma_pagamento):
+    valor_total = qtd * preco_unit
+
+    # 1. Dar baixa no estoque
+    sucesso_baixa, msg_baixa = dar_baixa_estoque(produto, qtd)
+    if not sucesso_baixa:
+        return False, msg_baixa
+
+    # 2. Registrar a venda na tabela de vendas
+    conn = conectar_banco()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO vendas (data, cliente, produto, estado_movel, quantidade, preco_unitario, valor_total, forma_pagamento)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (data, cliente, produto, estado_movel, qtd, preco_unit, valor_total, forma_pagamento))
+    conn.commit()
+    conn.close()
+
+    # 3. Integrar automaticamente com o Financeiro (Lançar Receita de Venda)
+    descricao_fin = f"Venda ({estado_movel}): {produto} x{qtd} - Cliente: {cliente if cliente else 'Não informado'} [{forma_pagamento}]"
+    salvar_transacao(
+        data=data,
+        tipo="Receita",
+        categoria="Venda de Produtos",
+        descricao=descricao_fin,
+        valor=valor_total
+    )
+
+    return True, f"Venda de {qtd}x '{produto}' registrada com sucesso! Lançamento financeiro e baixa no estoque realizados automaticamente."
+
+
+def carregar_vendas():
+    conn = conectar_banco()
+    df = pd.read_sql_query(
+        "SELECT data as Data, cliente as Cliente, produto as Produto, estado_movel as [Novo / Usado], quantidade as Qtd, preco_unitario as [Preço Unit. (R$)], valor_total as [Valor Total (R$)], forma_pagamento as [Forma de Pagamento] FROM vendas ORDER BY id DESC",
         conn
     )
     conn.close()
@@ -194,15 +258,108 @@ with st.sidebar:
 
 exibir_logo()
 
-# Navegação por Abas
-aba_financeiro, aba_estoque = st.tabs(["📊 Controle Financeiro e Caixa", "📦 Gestão de Estoque e Produtos"])
+# Navegação por Abas (Nova Aba de Vendas Acrescentada)
+aba_vendas, aba_financeiro, aba_estoque = st.tabs([
+    "🛒 Central de Vendas",
+    "📊 Controle Financeiro e Caixa",
+    "📦 Gestão de Estoque e Produtos"
+])
 
 # =========================================================
-# ABA 1: CONTROLE FINANCEIRO
+# ABA 1: CENTRAL DE VENDAS
+# =========================================================
+with aba_vendas:
+    st.title("🛒 Registro de Vendas")
+    st.subheader("🛍️ Nova Venda")
+
+    df_est_vendas = carregar_estoque()
+
+    if not df_est_vendas.empty:
+        # Filtra apenas produtos com estoque disponível > 0 para facilitar a venda
+        produtos_disponiveis = df_est_vendas[df_est_vendas["Qtd em Estoque"] > 0]
+
+        if not produtos_disponiveis.empty:
+            with st.form("form_venda", clear_on_submit=True):
+                col_v1, col_v2 = st.columns(2)
+
+                with col_v1:
+                    lista_prod_nomes = produtos_disponiveis["Produto"].tolist()
+                    prod_venda = st.selectbox("Selecione o Produto", lista_prod_nomes)
+
+                    # Busca as informações do produto selecionado no DataFrame de estoque
+                    item_info = produtos_disponiveis[produtos_disponiveis["Produto"] == prod_venda].iloc[0]
+                    estado_sugerido = item_info.get("Estado (Novo/Usado)", "Móvel Novo ✨")
+                    preco_sugerido = float(item_info["Preço Unitário (R$)"])
+                    qtd_disponivel = int(item_info["Qtd em Estoque"])
+
+                    st.info(
+                        f"ℹ️ Estoque disponível: **{qtd_disponivel} un.** | Preço Cadastrado: **R$ {preco_sugerido:,.2f}**")
+
+                    cliente_venda = st.text_input("Nome do Cliente (Opcional)", placeholder="Ex: João da Silva")
+                    estado_movel_venda = st.radio("Estado do Móvel", ["Móvel Novo ✨", "Móvel Usado ♻️"],
+                                                  index=0 if "Novo" in str(estado_sugerido) else 1)
+
+                with col_v2:
+                    qtd_venda = st.number_input("Quantidade Vendida", min_value=1, max_value=max(1, qtd_disponivel),
+                                                value=1, step=1)
+                    preco_venda = st.number_input("Preço de Venda Unitário (R$)", min_value=0.0, value=preco_sugerido,
+                                                  step=50.0, format="%.2f")
+                    forma_pagto = st.selectbox("Forma de Pagamento",
+                                               ["PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro",
+                                                "Transferência / TED", "Fiado / Outro"])
+                    data_venda = st.date_input("Data da Venda", datetime.now())
+
+                val_total_venda = qtd_venda * preco_venda
+                st.markdown(f"### 💰 **Total da Venda: R$ {val_total_venda:,.2f}**")
+
+                btn_finalizar_venda = st.form_submit_button("🛒 Finalizar Venda", use_container_width=True)
+
+                if btn_finalizar_venda:
+                    ok, msg = registrar_venda(
+                        data=data_venda.strftime("%d/%m/%Y"),
+                        cliente=cliente_venda.strip(),
+                        produto=prod_venda,
+                        estado_movel=estado_movel_venda,
+                        qtd=qtd_venda,
+                        preco_unit=preco_venda,
+                        forma_pagamento=forma_pagto
+                    )
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+        else:
+            st.warning(
+                "Não há produtos com saldo em estoque no momento para realizar vendas. Cadastre ou adicione saldo na aba de Estoque.")
+    else:
+        st.info("Nenhum produto cadastrado no estoque. Cadastre produtos no Estoque antes de registrar vendas.")
+
+    st.divider()
+    st.subheader("📋 Histórico e Relatório de Vendas")
+
+    df_vendas = carregar_vendas()
+    if not df_vendas.empty:
+        col_m1, col_m2, col_m3 = st.columns(3)
+        total_faturado = df_vendas["Valor Total (R$)"].sum()
+
+        vendas_novos = df_vendas[df_vendas["Novo / Usado"] == "Móvel Novo ✨"]["Valor Total (R$)"].sum()
+        vendas_usados = df_vendas[df_vendas["Novo / Usado"] == "Móvel Usado ♻️"]["Valor Total (R$)"].sum()
+
+        col_m1.metric("Total Faturado em Vendas", f"R$ {total_faturado:,.2f}")
+        col_m2.metric("Vendas de Móveis Novos", f"R$ {vendas_novos:,.2f}")
+        col_m3.metric("Vendas de Móveis Usados", f"R$ {vendas_usados:,.2f}")
+
+        st.dataframe(df_vendas, use_container_width=True)
+    else:
+        st.info("Nenhuma venda registrada ainda.")
+
+# =========================================================
+# ABA 2: CONTROLE FINANCEIRO
 # =========================================================
 with aba_financeiro:
     st.title("📊 Gestão Financeira e Caixa")
-    st.subheader("➕ Novo Lançamento")
+    st.subheader("➕ Novo Lançamento Manual")
 
     with st.form("form_lancamento", clear_on_submit=True):
         tipo_operacao = st.selectbox("Tipo de Operação", ["Despesa", "Receita"])
@@ -271,7 +428,7 @@ with aba_financeiro:
         st.info("Nenhum lançamento registrado no momento.")
 
 # =========================================================
-# ABA 2: GESTÃO DE ESTOQUE DE PRODUTOS
+# ABA 3: GESTÃO DE ESTOQUE DE PRODUTOS
 # =========================================================
 with aba_estoque:
     st.title("📦 Controle de Estoque de Produtos e Insumos")
@@ -283,9 +440,11 @@ with aba_estoque:
         st.subheader("➕ Entrada de Produto / Material")
         with st.form("form_add_estoque", clear_on_submit=True):
             nome_produto = st.text_input("Nome do Produto / Material",
-                                         placeholder="Ex: Chapa MDF 18mm / Puxador Inox / Cadeira")
+                                         placeholder="Ex: Chapa MDF 18mm / Sofá 3 Lugares / Cadeira")
             cat_produto = st.selectbox("Categoria", ["Produto Acabado", "Matéria-Prima", "Ferragem / Acessório",
                                                      "Insumo / Ferramenta", "Outro"])
+            estado_produto = st.selectbox("Estado do Móvel / Item",
+                                          ["Móvel Novo ✨", "Móvel Usado ♻️", "Não aplicável (Insumo/Ferramenta)"])
             qtd_produto = st.number_input("Quantidade a Adicionar", min_value=1, step=1, value=1)
             preco_unit = st.number_input("Preço / Custo Unitário (R$)", min_value=0.0, step=50.0, format="%.2f")
 
@@ -293,28 +452,31 @@ with aba_estoque:
 
             if btn_add_est:
                 if nome_produto.strip() != "":
-                    salvar_ou_atualizar_estoque(nome_produto.strip(), cat_produto, qtd_produto, preco_unit)
+                    salvar_ou_atualizar_estoque(nome_produto.strip(), cat_produto, estado_produto, qtd_produto,
+                                                preco_unit)
                     st.success(f"Estoque de '{nome_produto}' atualizado!")
+                    st.rerun()
                 else:
                     st.warning("Por favor, digite o nome do produto.")
 
-    # Formulário para Dar Baixa no Estoque
+    # Formulário para Dar Baixa no Estoque (Manual / Avaria)
     with col_baixa:
-        st.subheader("➖ Saída / Baixa do Estoque")
+        st.subheader("➖ Saída / Baixa do Estoque (Uso interno/Avaria)")
         df_est_atual = carregar_estoque()
 
         if not df_est_atual.empty:
             lista_produtos = df_est_atual["Produto"].tolist()
             with st.form("form_baixa_estoque", clear_on_submit=True):
                 prod_selecionado = st.selectbox("Selecione o Item", lista_produtos)
-                qtd_baixa = st.number_input("Quantidade Utilizada / Vendida", min_value=1, step=1, value=1)
+                qtd_baixa = st.number_input("Quantidade a Retirar", min_value=1, step=1, value=1)
 
-                btn_baixa = st.form_submit_button("📤 Confirmar Saída", use_container_width=True)
+                btn_baixa = st.form_submit_button("📤 Confirmar Saída Manual", use_container_width=True)
 
                 if btn_baixa:
                     sucesso, msg = dar_baixa_estoque(prod_selecionado, qtd_baixa)
                     if sucesso:
                         st.success(msg)
+                        st.rerun()
                     else:
                         st.error(msg)
         else:
@@ -334,6 +496,8 @@ with aba_estoque:
         st.dataframe(df_estoque, use_container_width=True)
     else:
         st.info("Nenhum item cadastrado no estoque no momento.")
+        
+
 
         
 
