@@ -300,10 +300,10 @@ SENHA_SISTEMA = "admin2026"
 
 
 def exibir_logo():
-    # Centraliza a imagem da logo no topo usando colunas
+    # Centraliza a imagem da logo no topo usando colunas (Apontando para logo.png)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("logo.jpeg", width=220)
+        st.image("logo.png", width=220)
 
 
 def tela_login():
@@ -616,5 +616,12 @@ with aba_estoque:
                 st.rerun()
     else:
         st.info("Nenhum item cadastrado no estoque no momento.")
+
+
+
+
+
+
+
 
 
