@@ -616,3 +616,5 @@ with aba_estoque:
                 st.rerun()
     else:
         st.info("Nenhum item cadastrado no estoque no momento.")
+
+
