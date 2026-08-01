@@ -300,10 +300,10 @@ SENHA_SISTEMA = "admin2026"
 
 
 def exibir_logo():
-    # Centraliza a imagem da logo no topo usando colunas (Apontando para logo.png)
+    # Caminho corrigido para a pasta static do GitHub
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("logo.png", width=220)
+        st.image("static/logo.png", width=220)
 
 
 def tela_login():
